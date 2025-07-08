@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -18,6 +18,12 @@ import {
 
 import { RulerPickerItem, RulerPickerItemProps } from './RulerPickerItem';
 import { calculateCurrentValue } from '../utils/';
+import {
+  PinchGestureHandler,
+  PinchGestureHandlerGestureEvent,
+  PinchGestureHandlerStateChangeEvent,
+  State,
+} from 'react-native-gesture-handler';
 
 export type RulerPickerTextProps = Pick<
   TextStyle,
@@ -147,6 +153,35 @@ export const RulerPicker = ({
   const arrData = Array.from({ length: itemAmount + 1 }, (_, index) => index);
   const listRef = useRef<FlashList<typeof arrData>>(null);
 
+  const [scale, setScale] = useState(1);
+  const baseScale = useRef(1);
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 3;
+
+  const scaledStepWidth = stepWidth * scale;
+  const scaledGapBetweenSteps = gapBetweenSteps * scale;
+
+  const onPinchGestureEvent = useCallback(
+    (event: PinchGestureHandlerGestureEvent) => {
+      let newScale = baseScale.current * event.nativeEvent.scale;
+      newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+      setScale(newScale);
+    },
+    []
+  );
+
+  const onPinchStateChange = useCallback(
+    (event: PinchGestureHandlerStateChangeEvent) => {
+      if (
+        event.nativeEvent.state === State.END ||
+        event.nativeEvent.oldState === State.ACTIVE
+      ) {
+        baseScale.current = scale;
+      }
+    },
+    [scale]
+  );
+
   const stepTextRef = useRef<TextInput>(null);
   const prevValue = useRef<string>(initialValue.toFixed(fractionDigits));
   const prevMomentumValue = useRef<string>(
@@ -158,8 +193,8 @@ export const RulerPicker = ({
     ({ value }) => {
       const newStep = calculateCurrentValue(
         value,
-        stepWidth,
-        gapBetweenSteps,
+        scaledStepWidth,
+        scaledGapBetweenSteps,
         min,
         max,
         step,
@@ -173,7 +208,15 @@ export const RulerPicker = ({
 
       prevValue.current = newStep;
     },
-    [fractionDigits, gapBetweenSteps, stepWidth, max, min, onValueChange, step]
+    [
+      fractionDigits,
+      scaledGapBetweenSteps,
+      scaledStepWidth,
+      max,
+      min,
+      onValueChange,
+      step,
+    ]
   );
 
   useEffect(() => {
@@ -200,8 +243,8 @@ export const RulerPicker = ({
   );
 
   const renderSeparator = useCallback(
-    () => <View style={{ width: width * 0.5 - stepWidth * 0.5 }} />,
-    [stepWidth, width]
+    () => <View style={{ width: width * 0.5 - scaledStepWidth * 0.5 }} />,
+    [scaledStepWidth, width]
   );
 
   const renderItem: ListRenderItem<unknown> = useCallback(
@@ -212,8 +255,8 @@ export const RulerPicker = ({
           index={index}
           shortStepHeight={shortStepHeight}
           longStepHeight={longStepHeight}
-          gapBetweenSteps={gapBetweenSteps}
-          stepWidth={stepWidth}
+          gapBetweenSteps={scaledGapBetweenSteps}
+          stepWidth={scaledStepWidth}
           shortStepColor={shortStepColor}
           longStepColor={longStepColor}
         />
@@ -221,8 +264,8 @@ export const RulerPicker = ({
     },
     [
       arrData.length,
-      gapBetweenSteps,
-      stepWidth,
+      scaledGapBetweenSteps,
+      scaledStepWidth,
       longStepColor,
       longStepHeight,
       shortStepColor,
@@ -234,8 +277,8 @@ export const RulerPicker = ({
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const newStep = calculateCurrentValue(
         event.nativeEvent.contentOffset.x || event.nativeEvent.contentOffset.y,
-        stepWidth,
-        gapBetweenSteps,
+        scaledStepWidth,
+        scaledGapBetweenSteps,
         min,
         max,
         step,
@@ -250,8 +293,8 @@ export const RulerPicker = ({
     },
     [
       fractionDigits,
-      gapBetweenSteps,
-      stepWidth,
+      scaledGapBetweenSteps,
+      scaledStepWidth,
       max,
       min,
       onValueChangeEnd,
@@ -261,105 +304,110 @@ export const RulerPicker = ({
   function onContentSizeChange() {
     const initialIndex = Math.floor((initialValue - min) / step);
     listRef.current?.scrollToOffset({
-      offset: initialIndex * (stepWidth + gapBetweenSteps),
+      offset: initialIndex * (scaledStepWidth + scaledGapBetweenSteps),
       animated: false,
     });
   }
 
   return (
-    <View style={{ width, height }}>
-      <AnimatedFlashList
-        ref={listRef}
-        data={arrData}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={renderItem}
-        ListHeaderComponent={renderSeparator}
-        ListFooterComponent={renderSeparator}
-        onScroll={scrollHandler}
-        onMomentumScrollEnd={onMomentumScrollEnd}
-        estimatedItemSize={stepWidth + gapBetweenSteps}
-        snapToOffsets={arrData.map(
-          (_, index) => index * (stepWidth + gapBetweenSteps)
-        )}
-        onContentSizeChange={onContentSizeChange}
-        snapToAlignment="start"
-        decelerationRate={decelerationRate}
-        estimatedFirstItemOffset={0}
-        scrollEventThrottle={16}
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        horizontal
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.indicator,
-          {
-            transform: [
-              { translateX: -stepWidth * 0.5 },
-              {
-                translateY:
-                  -indicatorHeight * 0.5 -
-                  (valueTextStyle?.fontSize ?? styles.valueText.fontSize),
-              },
-            ],
-            left: stepWidth * 0.5,
-          },
-        ]}
-      >
+    <PinchGestureHandler
+      onGestureEvent={onPinchGestureEvent}
+      onHandlerStateChange={onPinchStateChange}
+    >
+      <View style={{ width, height }}>
+        <AnimatedFlashList
+          ref={listRef}
+          data={arrData}
+          keyExtractor={(_, index) => index.toString()}
+          renderItem={renderItem}
+          ListHeaderComponent={renderSeparator}
+          ListFooterComponent={renderSeparator}
+          onScroll={scrollHandler}
+          onMomentumScrollEnd={onMomentumScrollEnd}
+          estimatedItemSize={scaledStepWidth + scaledGapBetweenSteps}
+          snapToOffsets={arrData.map(
+            (_, index) => index * (scaledStepWidth + scaledGapBetweenSteps)
+          )}
+          onContentSizeChange={onContentSizeChange}
+          snapToAlignment="start"
+          decelerationRate={decelerationRate}
+          estimatedFirstItemOffset={0}
+          scrollEventThrottle={16}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          horizontal
+        />
         <View
+          pointerEvents="none"
           style={[
-            styles.displayTextContainer,
+            styles.indicator,
             {
-              height: valueTextStyle?.fontSize ?? styles.valueText.fontSize,
               transform: [
+                { translateX: -scaledStepWidth * 0.5 },
                 {
                   translateY:
-                    -(valueTextStyle?.fontSize ?? styles.valueText.fontSize) *
-                    0.5,
+                    -indicatorHeight * 0.5 -
+                    (valueTextStyle?.fontSize ?? styles.valueText.fontSize),
                 },
               ],
+              left: scaledStepWidth * 0.5,
             },
           ]}
         >
-          <TextInput
-            ref={stepTextRef}
-            defaultValue={initialValue.toFixed(fractionDigits)}
+          <View
             style={[
+              styles.displayTextContainer,
               {
-                lineHeight:
-                  valueTextStyle?.fontSize ?? styles.valueText.fontSize,
+                height: valueTextStyle?.fontSize ?? styles.valueText.fontSize,
+                transform: [
+                  {
+                    translateY:
+                      -(valueTextStyle?.fontSize ?? styles.valueText.fontSize) *
+                      0.5,
+                  },
+                ],
               },
-              styles.valueText,
-              valueTextStyle,
             ]}
-          />
-          {unit && (
-            <Text
+          >
+            <TextInput
+              ref={stepTextRef}
+              defaultValue={initialValue.toFixed(fractionDigits)}
               style={[
                 {
                   lineHeight:
-                    unitTextStyle?.fontSize ?? styles.unitText.fontSize,
+                    valueTextStyle?.fontSize ?? styles.valueText.fontSize,
                 },
-                styles.unitText,
-                unitTextStyle,
+                styles.valueText,
+                valueTextStyle,
               ]}
-            >
-              {unit}
-            </Text>
-          )}
+            />
+            {unit && (
+              <Text
+                style={[
+                  {
+                    lineHeight:
+                      unitTextStyle?.fontSize ?? styles.unitText.fontSize,
+                  },
+                  styles.unitText,
+                  unitTextStyle,
+                ]}
+              >
+                {unit}
+              </Text>
+            )}
+          </View>
+          <View
+            style={[
+              {
+                width: scaledStepWidth,
+                height: indicatorHeight,
+                backgroundColor: indicatorColor,
+              },
+            ]}
+          />
         </View>
-        <View
-          style={[
-            {
-              width: stepWidth,
-              height: indicatorHeight,
-              backgroundColor: indicatorColor,
-            },
-          ]}
-        />
       </View>
-    </View>
+    </PinchGestureHandler>
   );
 };
 

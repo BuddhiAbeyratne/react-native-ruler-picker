@@ -28,6 +28,8 @@ import { RulerPicker } from 'react-native-ruler-picker';
 />;
 ```
 
+Pinch with two fingers to zoom in or out. The ruler will adjust the width and spacing of steps accordingly.
+
 ## Props
 
 | Name             | Type                         | Required | Default Value | Description                              |
