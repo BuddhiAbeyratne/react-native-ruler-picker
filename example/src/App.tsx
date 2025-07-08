@@ -1,11 +1,12 @@
 import * as React from 'react';
 
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RulerPicker } from 'react-native-ruler-picker';
 
 export default function App() {
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
       <RulerPicker
         min={0}
         unit="cm"
@@ -16,7 +17,7 @@ export default function App() {
         onValueChange={(number) => console.log('onValueChange', number)}
         onValueChangeEnd={(number) => console.log('onValueChangeEnd', number)}
       />
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
